@@ -292,10 +292,16 @@ class Odometer
 
     return
 
+  formatValue: (value) ->
+    if @options.formatFunction
+      value = @options.formatFunction(value)
+
+    String(value)
+
   update: (newValue) ->
     newValue = @cleanValue newValue
 
-    return unless diff = newValue - @value
+    return unless diff = @cleanValue(newValue) - @cleanValue(@value)
 
     removeClass @el, 'odometer-animating-up odometer-animating-down odometer-animating'
     if diff > 0
@@ -332,6 +338,15 @@ class Odometer
     spacer.innerHTML = chr
     addClass(spacer, extraClasses) if extraClasses
     @insertDigit spacer, before
+
+  addSpacerI: (chr, pos, extraClasses) ->
+    spacer = createFromHTML FORMAT_MARK_HTML
+    spacer.innerHTML = chr
+    addClass(spacer, extraClasses) if extraClasses
+    if @inside.children[pos]?
+      @inside.insertBefore spacer, @inside.children[pos]
+    else
+      @inside.append spacer
 
   addDigit: (value, repeating=true) ->
     if value is '-'
@@ -400,11 +415,9 @@ class Odometer
 
   getDigitCount: (values...) ->
     for value, i in values
-      values[i] = Math.abs(value)
+      values[i] = @formatValue(value).replace(/[^0-9]/g, '').length
 
-    max = Math.max values...
-
-    Math.ceil(Math.log(max + 1) / Math.log(10))
+    Math.max values...
 
   getFractionalDigitCount: (values...) ->
     # This assumes the value has already been rounded to
@@ -428,6 +441,18 @@ class Odometer
     @ribbons = []
     @inside.innerHTML = ''
     @resetFormat()
+
+  findSpacers: (value) ->
+    spacers = {}
+
+    for i in [0...value.length]
+      unless /[0-9]/.test(value.charAt(i))
+        if spacers[i-1]?
+          spacers[i-1] += value.charAt(i)
+        else
+          spacers[i] = value.charAt(i)
+
+    spacers
 
   animateSlide: (newValue) ->
     oldValue = @value
@@ -511,6 +536,14 @@ class Odometer
 
     if fractionalCount
       @addSpacer @format.radix, @digits[fractionalCount - 1], 'odometer-radix-mark'
+
+    src = newValue
+    if @getDigitCount(oldValue) > @getDigitCount(newValue)
+      src = oldValue
+
+    spacers = @findSpacers(@formatValue(src))
+    for pos, char of spacers
+      @addSpacerI char, pos, 'odometer-radix-mark'
 
 Odometer.options = window.odometerOptions ? {}
 

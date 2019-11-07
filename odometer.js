@@ -347,11 +347,18 @@
       }
     };
 
+    Odometer.prototype.formatValue = function(value) {
+      if (this.options.formatFunction) {
+        value = this.options.formatFunction(value);
+      }
+      return String(value);
+    };
+
     Odometer.prototype.update = function(newValue) {
       var diff,
         _this = this;
       newValue = this.cleanValue(newValue);
-      if (!(diff = newValue - this.value)) {
+      if (!(diff = this.cleanValue(newValue) - this.cleanValue(this.value))) {
         return;
       }
       removeClass(this.el, 'odometer-animating-up odometer-animating-down odometer-animating');
@@ -392,6 +399,20 @@
         addClass(spacer, extraClasses);
       }
       return this.insertDigit(spacer, before);
+    };
+
+    Odometer.prototype.addSpacerI = function(chr, pos, extraClasses) {
+      var spacer;
+      spacer = createFromHTML(FORMAT_MARK_HTML);
+      spacer.innerHTML = chr;
+      if (extraClasses) {
+        addClass(spacer, extraClasses);
+      }
+      if (this.inside.children[pos] != null) {
+        return this.inside.insertBefore(spacer, this.inside.children[pos]);
+      } else {
+        return this.inside.append(spacer);
+      }
     };
 
     Odometer.prototype.addDigit = function(value, repeating) {
@@ -470,14 +491,13 @@
     };
 
     Odometer.prototype.getDigitCount = function() {
-      var i, max, value, values, _i, _len;
+      var i, value, values, _i, _len;
       values = 1 <= arguments.length ? __slice.call(arguments, 0) : [];
       for (i = _i = 0, _len = values.length; _i < _len; i = ++_i) {
         value = values[i];
-        values[i] = Math.abs(value);
+        values[i] = this.formatValue(value).replace(/[^0-9]/g, '').length;
       }
-      max = Math.max.apply(Math, values);
-      return Math.ceil(Math.log(max + 1) / Math.log(10));
+      return Math.max.apply(Math, values);
     };
 
     Odometer.prototype.getFractionalDigitCount = function() {
@@ -504,8 +524,23 @@
       return this.resetFormat();
     };
 
+    Odometer.prototype.findSpacers = function(value) {
+      var i, spacers, _i, _ref;
+      spacers = {};
+      for (i = _i = 0, _ref = value.length; 0 <= _ref ? _i < _ref : _i > _ref; i = 0 <= _ref ? ++_i : --_i) {
+        if (!/[0-9]/.test(value.charAt(i))) {
+          if (spacers[i - 1] != null) {
+            spacers[i - 1] += value.charAt(i);
+          } else {
+            spacers[i] = value.charAt(i);
+          }
+        }
+      }
+      return spacers;
+    };
+
     Odometer.prototype.animateSlide = function(newValue) {
-      var boosted, cur, diff, digitCount, digits, dist, end, fractionalCount, frame, frames, i, incr, j, mark, numEl, oldValue, start, _base, _i, _j, _k, _l, _len, _len1, _len2, _m, _ref, _results;
+      var boosted, char, cur, diff, digitCount, digits, dist, end, fractionalCount, frame, frames, i, incr, j, mark, numEl, oldValue, pos, spacers, src, start, _base, _i, _j, _k, _l, _len, _len1, _len2, _m, _ref, _results, _results1;
       oldValue = this.value;
       fractionalCount = this.getFractionalDigitCount(oldValue, newValue);
       if (fractionalCount) {
@@ -584,8 +619,19 @@
         mark.parent.removeChild(mark);
       }
       if (fractionalCount) {
-        return this.addSpacer(this.format.radix, this.digits[fractionalCount - 1], 'odometer-radix-mark');
+        this.addSpacer(this.format.radix, this.digits[fractionalCount - 1], 'odometer-radix-mark');
       }
+      src = newValue;
+      if (this.getDigitCount(oldValue) > this.getDigitCount(newValue)) {
+        src = oldValue;
+      }
+      spacers = this.findSpacers(this.formatValue(src));
+      _results1 = [];
+      for (pos in spacers) {
+        char = spacers[pos];
+        _results1.push(this.addSpacerI(char, pos, 'odometer-radix-mark'));
+      }
+      return _results1;
     };
 
     return Odometer;
